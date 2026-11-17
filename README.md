@@ -22,6 +22,7 @@ It contains the following files and folders:
 To execute, go to `app.py` and run the script. You will need to create a virtual Python environment and install the dependencies listed in `requirements.txt`.
 
 You can then launch the web interface in your browser at `http://127.0.0.1:5000` or go to `https://jdt.fids.ur.de` to use the hosted version.
+The web interface lets you open a JDT file, edit its text in the browser without changing the original file, and convert it to JSON Schema.
 
 To use the VS Code extension, you need Visual Studio Code. Open the `extension.ts` file and, in the menu bar, click `Run` > `Start Debugging`. A new window will open with the extension enabled. All `*.jdt` files will be highlighted and auto-completion will be available. GitHub Copilot will work depending on your settings and subscription. In the bottom-right corner, you can click the Copilot icon to enable or disable Copilot. In the future, the extension will be available in the VS Code Marketplace.
 

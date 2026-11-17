@@ -3,9 +3,10 @@
 
 from flask import Flask, render_template_string, request, jsonify
 try:
-    from jdt import parse_and_validate
+    from jdt import convert_jdt_to_json_schema, parse_and_validate
 except ImportError:
     from parser import parse_and_validate
+    from jdt.json_schema import convert_jdt_to_json_schema
 
 import json
 
@@ -67,6 +68,56 @@ HTML_TEMPLATE = """
             grid-template-columns: 1fr 1fr;
             gap: 30px;
             padding: 30px;
+        }
+
+        .tool-view {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 30px;
+        }
+
+        .tool-view[hidden] {
+            display: none;
+        }
+
+        .mode-selector {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mode-selector label {
+            color: #2d3748;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .mode-selector select {
+            color: #2d3748;
+            font-size: 14px;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: white;
+        }
+
+        .converter-file-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .converter-file-name,
+        .converter-note {
+            color: #718096;
+            font-size: 13px;
+        }
+
+        .converter-note {
+            align-self: center;
         }
         
         .left-buttons {
@@ -380,6 +431,11 @@ HTML_TEMPLATE = """
                 padding: 15px;
                 gap: 15px;
             }
+
+            .tool-view {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
             
             .textarea-wrapper {
                 flex-basis: 150px;
@@ -415,63 +471,103 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <div class="header">
-            <h1>JDT Schema Validator</h1>
-            <p>Validate JSON files against JDT schemas</p>
+            <h1>JDT Schema Tools</h1>
+            <p>Validate JSON files and convert JDT schemas to JSON Schema</p>
         </div>
         
         <div class="content">
-            <div class="panel">
-                <h2>
-                    JDT Schema
-                    <button class="btn-browse" id="browseSchemBtn">Browse</button>
-                </h2>
-                <div class="textarea-wrapper">
-                    <div class="dropzone" id="schemaDrop">
-                        <div class="dropzone-content">
-                            <div class="dropzone-icon">📄</div>
-                            <div class="dropzone-text">Drop file here</div>
+            <div class="mode-selector">
+                <label for="toolSelect">Tool</label>
+                <select id="toolSelect">
+                    <option value="validator" selected>Validator</option>
+                    <option value="converter">Converter</option>
+                </select>
+            </div>
+
+            <section class="tool-view" id="validatorView" aria-label="Validator">
+                <div class="panel">
+                    <h2>
+                        JDT Schema
+                        <button class="btn-browse" id="browseSchemBtn">Browse</button>
+                    </h2>
+                    <div class="textarea-wrapper">
+                        <div class="dropzone" id="schemaDrop">
+                            <div class="dropzone-content">
+                                <div class="dropzone-icon">📄</div>
+                                <div class="dropzone-text">Drop file here</div>
+                            </div>
                         </div>
+                        <input type="file" id="schemaFile" accept=".jdt,.txt">
+                        <div class="line-numbers" id="schemaLineNumbers">1</div>
+                        <div class="error-line-highlight" aria-hidden="true"></div>
+                        <textarea id="schemaInput" placeholder="Paste your JDT schema here or drag a file..." spellcheck="false"></textarea>
                     </div>
-                    <input type="file" id="schemaFile" accept=".jdt,.txt">
-                    <div class="line-numbers" id="schemaLineNumbers">1</div>
-                    <div class="error-line-highlight" aria-hidden="true"></div>
-                    <textarea id="schemaInput" placeholder="Paste your JDT schema here or drag a file..." spellcheck="false"></textarea>
                 </div>
-            </div>
-            
-            <div class="panel">
-                <h2>
-                    JSON File
-                    <button class="btn-browse" id="browseJsonBtn">Browse</button>
-                </h2>
-                <div class="textarea-wrapper">
-                    <div class="dropzone" id="jsonDrop">
-                        <div class="dropzone-content">
-                            <div class="dropzone-icon">📄</div>
-                            <div class="dropzone-text">Drop file here</div>
+
+                <div class="panel">
+                    <h2>
+                        JSON File
+                        <button class="btn-browse" id="browseJsonBtn">Browse</button>
+                    </h2>
+                    <div class="textarea-wrapper">
+                        <div class="dropzone" id="jsonDrop">
+                            <div class="dropzone-content">
+                                <div class="dropzone-icon">📄</div>
+                                <div class="dropzone-text">Drop file here</div>
+                            </div>
                         </div>
+                        <input type="file" id="jsonFile" accept=".json,.txt">
+                        <div class="line-numbers" id="jsonLineNumbers">1</div>
+                        <div class="error-line-highlight" aria-hidden="true"></div>
+                        <textarea id="jsonInput" placeholder="Paste your JSON file here or drag a file..." spellcheck="false"></textarea>
                     </div>
-                    <input type="file" id="jsonFile" accept=".json,.txt">
-                    <div class="line-numbers" id="jsonLineNumbers">1</div>
-                    <div class="error-line-highlight" aria-hidden="true"></div>
-                    <textarea id="jsonInput" placeholder="Paste your JSON file here or drag a file..." spellcheck="false"></textarea>
                 </div>
-            </div>
-            
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Validating...</p>
-            </div>
-            
-            <div class="result" id="result"></div>
-            
-            <div class="button-group">
-                <div class="left-buttons">
-                    <button class="btn-example" id="exampleBtn" onclick="loadExample()">Load Example</button>
-                    <button class="btn-clear" id="clearBtn" onclick="clearAll()">Clear</button>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Validating...</p>
                 </div>
-                <button class="btn-validate" id="validateBtn" onclick="validate()">Validate</button>
-            </div>
+
+                <div class="result" id="result"></div>
+
+                <div class="button-group">
+                    <div class="left-buttons">
+                        <button class="btn-example" id="exampleBtn" onclick="loadExample()">Load Example</button>
+                        <button class="btn-clear" id="clearBtn" onclick="clearAll()">Clear</button>
+                    </div>
+                    <button class="btn-validate" id="validateBtn" onclick="validate()">Validate</button>
+                </div>
+            </section>
+
+            <section class="tool-view" id="converterView" aria-label="Converter" hidden>
+                <div class="panel">
+                    <h2>
+                        JDT Schema
+                        <button class="btn-browse" id="openJdtBtn" type="button">Add file</button>
+                    </h2>
+                    <div class="converter-file-controls">
+                        <input type="file" id="converterFile" accept=".jdt,.txt">
+                        <span class="converter-file-name" id="converterFileName" aria-live="polite"></span>
+                    </div>
+                    <div class="textarea-wrapper">
+                        <textarea id="converterInput" placeholder="Open a .jdt file or enter a schema here..." spellcheck="false"></textarea>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>JSON Schema</h2>
+                    <div class="textarea-wrapper">
+                        <textarea id="converterOutput" placeholder="The converted JSON Schema will appear here..." spellcheck="false" readonly></textarea>
+                    </div>
+                </div>
+
+                <div class="result" id="converterResult" role="status" aria-live="polite"></div>
+
+                <div class="button-group">
+                    <p class="converter-note">Changes in the editor are not saved to the original file.</p>
+                    <button class="btn-validate" id="convertBtn" type="button" onclick="convertJdt()">Convert</button>
+                </div>
+            </section>
         </div>
     </div>
     
@@ -495,6 +591,58 @@ HTML_TEMPLATE = """
         const validateBtn = document.getElementById('validateBtn');
         const loading = document.getElementById('loading');
         const result = document.getElementById('result');
+        const converterInput = document.getElementById('converterInput');
+        const converterOutput = document.getElementById('converterOutput');
+        const converterFile = document.getElementById('converterFile');
+        const converterResult = document.getElementById('converterResult');
+
+        const toolSelect = document.getElementById('toolSelect');
+        const validatorView = document.getElementById('validatorView');
+        const converterView = document.getElementById('converterView');
+        toolSelect.addEventListener('change', () => {
+            const showConverter = toolSelect.value === 'converter';
+            validatorView.hidden = showConverter;
+            converterView.hidden = !showConverter;
+        });
+
+        document.getElementById('openJdtBtn').addEventListener('click', () => converterFile.click());
+        converterFile.addEventListener('change', async () => {
+            const file = converterFile.files[0];
+            if (!file) return;
+
+            try {
+                converterInput.value = await file.text();
+                document.getElementById('converterFileName').textContent = file.name;
+                converterOutput.value = '';
+                converterResult.classList.remove('show', 'valid', 'invalid');
+            } catch (error) {
+                converterResult.classList.remove('valid');
+                converterResult.classList.add('show', 'invalid');
+                converterResult.innerHTML = `<p>${escapeHtml(`Could not read file: ${error.message}`)}</p>`;
+            }
+        });
+
+        async function convertJdt() {
+            converterResult.classList.remove('show', 'valid', 'invalid');
+            try {
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({schema: converterInput.value})
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Conversion failed.');
+                }
+                converterOutput.value = JSON.stringify(data.schema, null, 2);
+                converterResult.classList.add('show', 'valid');
+                converterResult.innerHTML = '<p>Conversion complete.</p>';
+            } catch (error) {
+                converterOutput.value = '';
+                converterResult.classList.add('show', 'invalid');
+                converterResult.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+            }
+        }
         
         function setupDropZone(dropZone, textarea, fileInput, allowedExtensions) {
             const wrapper = textarea.parentElement;
@@ -892,6 +1040,25 @@ def validate():
             'success': False,
             'error': str(e)
         })
+
+
+@app.route('/convert', methods=['POST'])
+def convert():
+    """Convert edited JDT source text to JSON Schema."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'success': False, 'error': 'A JSON request body is required'}), 400
+
+    schema_text = data.get('schema')
+    if not isinstance(schema_text, str) or not schema_text.strip():
+        return jsonify({'success': False, 'error': 'JDT schema text is required'}), 400
+
+    try:
+        schema = convert_jdt_to_json_schema(schema_text)
+    except (SyntaxError, ValueError) as error:
+        return jsonify({'success': False, 'error': str(error)}), 400
+
+    return jsonify({'success': True, 'schema': schema})
 
 
 if __name__ == '__main__':
