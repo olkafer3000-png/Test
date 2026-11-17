@@ -1,0 +1,12 @@
+is type object
+is schema "https://example.com/jdt/person"
+is version "https://example.com/jdt/person/v1"
+
+define Address:
+    street is string, required
+    city is string, required
+
+name is string, required, longer 0
+age is number, minimum 0
+address is Address, required
+hobbies is array(string)

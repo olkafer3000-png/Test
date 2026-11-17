@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "allOf": [
+        {
+          "type": "string"
+        },
+        {
+          "minLength": 0,
+          "minItems": 0
+        }
+      ]
+    },
+    "age": {
+      "allOf": [
+        {
+          "type": "number"
+        },
+        {
+          "minimum": 0
+        }
+      ]
+    },
+    "address": {
+      "$ref": "#/$defs/Address"
+    },
+    "hobbies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "$schema": {
+      "const": "https://example.com/jdt/person"
+    },
+    "$version": {
+      "const": "https://example.com/jdt/person/v1"
+    }
+  },
+  "required": [
+    "name",
+    "address"
+  ],
+  "$defs": {
+    "Address": {
+      "type": "object",
+      "properties": {
+        "street": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "street",
+        "city"
+      ]
+    }
+  }
+}
