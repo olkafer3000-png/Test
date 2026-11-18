@@ -11,6 +11,7 @@ class JsonSchemaConverterTests(unittest.TestCase):
 user:
     name is string, required, longer 0
     age is number, minimum 0, maximum 120
+    zip is number, not null
     hobbies is array(string)
 """
         )
@@ -19,12 +20,15 @@ user:
         self.assertEqual(user["type"], "object")
         self.assertEqual(user["required"], ["name"])
         self.assertEqual(user["additionalProperties"], False)
-        self.assertEqual(user["properties"]["name"], {
-            "allOf": [{"type": "string"}, {"minLength": 0, "minItems": 0}]
-        })
-        self.assertEqual(user["properties"]["age"], {
-            "allOf": [{"type": "number"}, {"minimum": 0}, {"maximum": 120}]
-        })
+        self.assertEqual(
+            user["properties"]["name"],
+            {"type": "string", "minLength": 1},
+        )
+        self.assertEqual(
+            user["properties"]["age"],
+            {"type": "number", "minimum": 0, "maximum": 120},
+        )
+        self.assertEqual(user["properties"]["zip"], {"type": "number"})
         self.assertEqual(user["properties"]["hobbies"], {
             "type": "array",
             "items": {"type": "string"},
@@ -67,18 +71,74 @@ code is string, match(""" + '"""[A-Z]+"""' + """)
 
         self.assertEqual(
             result["properties"]["state"],
-            {"anyOf": [{"const": "active"}, {"const": "inactive"}]},
+            {"type": "string", "enum": ["active", "inactive"]},
         )
         self.assertEqual(
             result["properties"]["count"],
-            {"allOf": [
-                {"type": "number"},
-                {"exclusiveMinimum": 0},
-                {"exclusiveMaximum": 10},
-            ]},
+            {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "exclusiveMaximum": 10,
+            },
         )
-        code_constraints = result["properties"]["code"]["allOf"]
-        self.assertEqual(code_constraints[1]["pattern"], "^(?:[A-Z]+)$")
+        self.assertEqual(
+            result["properties"]["code"],
+            {"type": "string", "pattern": "^(?:[A-Z]+)$"},
+        )
+
+    def test_converts_length_constraints_for_integer_digit_counts(self):
+        result = convert_jdt_to_json_schema(
+            """long_value is number, longer 13
+short_value is number, shorter 13
+"""
+        )
+
+        self.assertEqual(
+            result["properties"]["long_value"],
+            {
+                "type": "integer",
+                "not": {
+                    "minimum": -(10**13 - 1),
+                    "maximum": 10**13 - 1,
+                },
+            },
+        )
+        self.assertEqual(
+            result["properties"]["short_value"],
+            {
+                "type": "integer",
+                "exclusiveMinimum": -(10**12),
+                "exclusiveMaximum": 10**12,
+            },
+        )
+
+    def test_simplifies_multiple_integer_digit_limits_without_rounding(self):
+        result = convert_jdt_to_json_schema(
+            "number is number, longer 13, shorter 19"
+        )
+
+        self.assertEqual(
+            result["properties"]["number"],
+            {
+                "type": "integer",
+                "not": {
+                    "minimum": -(10**13 - 1),
+                    "maximum": 10**13 - 1,
+                },
+                "exclusiveMinimum": -(10**18),
+                "exclusiveMaximum": 10**18,
+            },
+        )
+
+    def test_collapses_literal_alternatives_and_removes_empty_branch(self):
+        result = convert_jdt_to_json_schema(
+            'color is string, "blue" or "green" or "brown", optional'
+        )
+
+        self.assertEqual(
+            result["properties"]["color"],
+            {"type": "string", "enum": ["blue", "green", "brown"]},
+        )
 
     def test_rejects_references_to_undefined_types(self):
         with self.assertRaisesRegex(ValueError, "Undefined JDT data type: Missing"):

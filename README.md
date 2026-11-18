@@ -40,21 +40,3 @@ Parser functionality:
 - Provides detailed error messages for validation failures.
 
 For the definition of the JDT Schema Language, refer to the `jdt.md` file.
-
-
-## Converting JDT to JSON Schema
-
-The converter is available as a Python API:
-
-```python
-from jdt import convert_jdt_to_json_schema, dumps_json_schema
-
-json_schema = convert_jdt_to_json_schema(jdt_source)  # Python dictionary
-json_schema_text = dumps_json_schema(jdt_source)      # formatted JSON text
-```
-
-It can also be run from the command line, reading a file or standard input:
-
-```sh
-python JDTtoJSONkonverter schema.jdt
-```
